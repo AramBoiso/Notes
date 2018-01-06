@@ -1,5 +1,10 @@
 import { Component } from '@angular/core';
 
+import { AngularFireDatabase } from 'angularfire2/database';
+import { Observable } from 'rxjs/Observable';
+
+
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
@@ -9,51 +14,81 @@ export class AppComponent {
   showForm:boolean;
   editNote:boolean;
   deleteButton:boolean;
+  myNotes:any;
+  note:any;
+  myNotesOffline:Array<any>;
 
- 
 
-  constructor(){ this.showForm = false; this.editNote = false; this.deleteButton = false; }
 
-  notes:any[] = [
-    {id:1, title:'Note 1', description:'It is my note one'},
-    {id:2, title:'Note 2', description:'It is my note two'},
-    {id:3, title:'Note 3', description:'It is my note three'},
-    {id:4, title:'Note 4', description:'It is my note four'},
-    {id:5, title:'Note 5', description:'It is my note five'},
+  constructor(public afDB: AngularFireDatabase){ 
+     this.showForm = false;
+     this.editNote = false; 
+     this.deleteButton = false;
+     this.note = { id:null , title:null, description:null };
+     this.myNotesOffline = [];
+     
 
-  ];
+     if(navigator.onLine){
 
-  note = { id:null , title:null, description:null };
+       this.getNotes()
+           .subscribe(
+              notes =>{
+                this.myNotes = notes;
+                localStorage.setItem('myNotes',JSON.stringify(this.myNotes));
+              }
+     );
 
+     }else{
+        this.myNotes = JSON.parse(localStorage.getItem('myNotes'));
+     }
+  
+  }
+
+   getNotes(){
+      return this.afDB.list('/notes').valueChanges();
+  }
+
+  resetNotes(){ this.note =  { id:null , title:null, description:null }; }
+
+  
   addNote(){
       this.showForm = true;
-      this.note = { id:null , title:null, description:null };
       this.deleteButton = false;
+      this.resetNotes();
   }
 
   saveNote(){
-  if(this.editNote){
-    var me = this;
-    this.notes.forEach(function(el, i){
-      if(el.id === me.note.id){
-          me.notes[i] = me.note;
+
+    if(this.editNote){
+      if(navigator.onLine){
+        this.afDB.database.ref('notes/' + this.note.id).set(this.note);
+      }else{
+        this.myNotes.forEach(note => {
+          if(note.id == this.note.id){
+              note = this.note;
+          }
+        });
       }
-      me.note = { id:null , title:null, description:null };
-    });
-    
+    }else{  
+        if(navigator.onLine){
+          this.note.id = Date.now(); 
+          this.afDB.database.ref('notes/' + this.note.id).set(this.note);
+        }else{
+          this.myNotes.push(this.note);
+        }
+        
+    }
+
     this.showForm = false;
-  }else{
-     this.note.id = Date.now();
-     this.notes.push(this.note);
-     this.showForm = false;
-     this.note = { id:null , title:null, description:null };
-  }
+    this.deleteButton = false;
+    this.resetNotes();
+    localStorage.setItem('myNotes',JSON.stringify(this.myNotes));
   }
 
   cancelNote(){
     this.showForm = false;
-    this.note = { id:null , title:null, description:null };
     this.deleteButton = false;
+    this.resetNotes();
   }
 
   viewNote(note){
@@ -64,15 +99,20 @@ export class AppComponent {
   }
 
   deleteNote(){
-    var me = this;
-    this.notes.forEach(function(el, i){
-     if(el == me.note){
-       me.notes.splice(i, 1);
-     }
-     me.note = { id:null , title:null, description:null };
-     me.showForm = false;
-     me.deleteButton = false;
-    });
+    if(navigator.onLine){
+    this.afDB.database.ref('notes/' + this.note.id).remove();
+    }else{
+      this.myNotes.forEach((note, i) => {
+        if(note.id == this.note.id){
+            this.myNotes.splice(i,1);
+        }
+      });
+    }
+  
+    this.deleteButton = false;
+    this.showForm = true;
+    this.resetNotes();
+    localStorage.setItem('myNotes',JSON.stringify(this.myNotes));
   }
 
 }
